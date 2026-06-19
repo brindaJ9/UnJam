@@ -11,7 +11,11 @@ __pycache__/
 .ipynb_checkpoints/
 
 # Dataset files
-*.csv
+# Ignore large datasets
+data/**/*.csv
+
+# Allow generated AI outputs for dashboard
+!outputs/*.csv
 
 # Models
 *.pkl
