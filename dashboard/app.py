@@ -227,6 +227,18 @@ html, body, [data-testid="stAppViewContainer"] {
     padding: 0.2rem 0;
 }
 
+/* ── Control cards (equal height, aligned) ── */
+.ctrl-card {
+    background: rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 1.2rem 1.4rem 1.4rem 1.4rem;
+    min-height: 110px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+}
+
 /* ── Plotly chart backgrounds ── */
 .js-plotly-plot .plotly, .js-plotly-plot .plotly .svg-container {
     background: transparent !important;
@@ -294,7 +306,7 @@ else:
 # ─────────────────────────────────────────────
 st.markdown("""
 <div class="dash-header">
-  <div class="dash-title">UNJAM AI</div>
+  <div class="dash-title">UnJam AI</div>
   <div class="dash-subtitle">AI Traffic Intelligence Platform</div>
   <div class="dash-caption">Predictive Parking Enforcement &amp; Congestion Prevention</div>
 </div>
@@ -486,9 +498,10 @@ with tab_deploy:
     # ── Simulation controls ───────────────────
     st.markdown('<div class="section-title">⚙️ Simulation Controls</div>', unsafe_allow_html=True)
 
-    ctrl1, ctrl2, ctrl3 = st.columns([1, 2, 1], gap="large")
+    ctrl1, ctrl2 = st.columns(2, gap="large")
 
     with ctrl1:
+        st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
         available_officers = st.number_input(
             "👮 Available Officers",
             min_value=10,
@@ -497,26 +510,29 @@ with tab_deploy:
             step=10,
             help="Total officers available for deployment",
         )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     with ctrl2:
-        risk_threshold = st.slider(
-            "⚠️ Risk Threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.4,
-            step=0.05,
-            help="Only deploy to zones with enforcement demand above this threshold",
+        st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
+        risk_threshold_pct = st.slider(
+            "🎯 Enforcement Priority Threshold (%)",
+            min_value=0,
+            max_value=100,
+            value=70,
+            step=5,
+            help="Only deploy to zones with a Risk Score >= this value",
         )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Simulation logic (unchanged) ─────────
+    # ── Simulation logic ──────────────────────
     simulation = enforcement.copy()
     simulation = simulation.sort_values("enforcement_demand_score", ascending=False)
 
-    # Apply risk threshold filter
+    # Filter by priority_score (0–100 scale) against the percentage threshold
     simulation = simulation[
-        simulation["enforcement_demand_score"] >= risk_threshold * simulation["enforcement_demand_score"].max()
+        simulation["priority_score"] >= risk_threshold_pct
     ]
 
     if len(simulation) == 0:
@@ -557,7 +573,7 @@ with tab_deploy:
         m1.metric("Available Officers", available_officers)
         m2.metric("Allocated Officers", simulation["simulated_officers"].sum())
         m3.metric("Zones Covered", len(simulation[simulation["simulated_officers"] > 0]))
-        m4.metric("Risk Threshold", f"{risk_threshold:.0%}")
+        m4.metric("Risk Threshold", f"{risk_threshold_pct}%")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
