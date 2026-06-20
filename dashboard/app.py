@@ -227,18 +227,6 @@ html, body, [data-testid="stAppViewContainer"] {
     padding: 0.2rem 0;
 }
 
-/* ── Control cards (equal height, aligned) ── */
-.ctrl-card {
-    background: rgba(255, 255, 255, 0.06);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 1.2rem 1.4rem 1.4rem 1.4rem;
-    min-height: 110px;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
-}
-
 /* ── Plotly chart backgrounds ── */
 .js-plotly-plot .plotly, .js-plotly-plot .plotly .svg-container {
     background: transparent !important;
@@ -498,10 +486,9 @@ with tab_deploy:
     # ── Simulation controls ───────────────────
     st.markdown('<div class="section-title">⚙️ Simulation Controls</div>', unsafe_allow_html=True)
 
-    ctrl1, ctrl2 = st.columns(2, gap="large")
+    ctrl1, ctrl2, ctrl3 = st.columns([1, 2, 1], gap="large")
 
     with ctrl1:
-        st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
         available_officers = st.number_input(
             "👮 Available Officers",
             min_value=10,
@@ -510,33 +497,28 @@ with tab_deploy:
             step=10,
             help="Total officers available for deployment",
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     with ctrl2:
-        st.markdown('<div class="ctrl-card">', unsafe_allow_html=True)
-        risk_threshold_pct = st.slider(
-            "🎯 Enforcement Priority Threshold (%)",
+        risk_threshold = st.slider(
+            "⚠️ Enforcement Priority Threshold (%)",
             min_value=0,
             max_value=100,
             value=70,
             step=5,
-            help="Only deploy to zones with a Risk Score >= this value",
+            help="Only deploy to zones whose Risk Score is at or above this value",
         )
-        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── Simulation logic ──────────────────────
+    # ── Simulation logic (unchanged allocation math) ─────────
     simulation = enforcement.copy()
-    simulation = simulation.sort_values("enforcement_demand_score", ascending=False)
+    simulation = simulation.sort_values("priority_score", ascending=False)
 
-    # Filter by priority_score (0–100 scale) against the percentage threshold
-    simulation = simulation[
-        simulation["priority_score"] >= risk_threshold_pct
-    ]
+    # Filter: only zones whose risk score meets the threshold
+    simulation = simulation[simulation["priority_score"] >= risk_threshold]
 
     if len(simulation) == 0:
-        st.warning("No zones meet the current risk threshold. Lower the threshold to see results.")
+        st.warning(f"No zones have a Risk Score ≥ {risk_threshold}. Lower the threshold to see results.")
     else:
         raw_allocation = (
             simulation["enforcement_demand_score"]
@@ -573,7 +555,7 @@ with tab_deploy:
         m1.metric("Available Officers", available_officers)
         m2.metric("Allocated Officers", simulation["simulated_officers"].sum())
         m3.metric("Zones Covered", len(simulation[simulation["simulated_officers"] > 0]))
-        m4.metric("Risk Threshold", f"{risk_threshold_pct}%")
+        m4.metric("Risk Threshold", f"{risk_threshold}%")
 
         st.markdown("<br>", unsafe_allow_html=True)
 
