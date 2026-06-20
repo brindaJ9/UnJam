@@ -294,7 +294,7 @@ else:
 # ─────────────────────────────────────────────
 st.markdown("""
 <div class="dash-header">
-  <div class="dash-title">UNJAM</div>
+  <div class="dash-title">UNJAM AI</div>
   <div class="dash-subtitle">AI Traffic Intelligence Platform</div>
   <div class="dash-caption">Predictive Parking Enforcement &amp; Congestion Prevention</div>
 </div>
@@ -566,8 +566,34 @@ with tab_deploy:
 
         with tbl_col:
             st.markdown('<div class="section-title">🗂️ Officer Allocation Table</div>', unsafe_allow_html=True)
+
+            # Build display table — expose risk score and priority classification
+            alloc_display = simulation[
+                ["enforcement_zone", "priority_score", "risk_level", "simulated_officers"]
+            ].copy()
+
+            alloc_display["priority_score"] = alloc_display["priority_score"].round(1)
+
+            def classify_priority(score):
+                if score >= 80:
+                    return "🔴 High"
+                elif score >= 60:
+                    return "🟡 Medium"
+                else:
+                    return "🟢 Low"
+
+            alloc_display["Priority"] = alloc_display["priority_score"].apply(classify_priority)
+
+            alloc_display = alloc_display.rename(columns={
+                "enforcement_zone": "Zone",
+                "priority_score":   "Risk Score",
+                "simulated_officers": "Officers Needed",
+            }).drop(columns=["risk_level"])
+
+            alloc_display = alloc_display[["Zone", "Risk Score", "Priority", "Officers Needed"]]
+
             st.dataframe(
-                simulation[["enforcement_zone", "risk_level", "enforcement_demand_score", "simulated_officers"]],
+                alloc_display,
                 use_container_width=True,
                 hide_index=True,
             )
