@@ -26,6 +26,12 @@ html, body, [data-testid="stAppViewContainer"] {
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
 
+/* ── Reduce default top padding ── */
+.block-container {
+    padding-top: 0.5rem !important;
+    padding-bottom: 1rem !important;
+}
+
 [data-testid="stSidebar"] { display: none; }
 
 /* ── Glass card utility ── */
@@ -144,22 +150,33 @@ html, body, [data-testid="stAppViewContainer"] {
 
 /* ── Dashboard header ── */
 .dash-header {
-    padding: 1.5rem 0 1rem 0;
-    margin-bottom: 0.5rem;
+    padding: 0.6rem 0 0.75rem 0;
+    margin-bottom: 0.25rem;
 }
 .dash-title {
-    font-size: 2rem;
-    font-weight: 800;
+    font-size: 2.4rem;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     background: linear-gradient(90deg, #60a5fa, #a78bfa, #34d399);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    line-height: 1.1;
+    line-height: 1;
+}
+.dash-subtitle {
+    font-size: 0.9rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(148,163,184,0.65);
+    margin-top: 0.3rem;
+    text-transform: uppercase;
 }
 .dash-caption {
-    font-size: 0.85rem;
-    color: rgba(148,163,184,0.75);
-    margin-top: 0.3rem;
+    font-size: 0.75rem;
+    color: rgba(148,163,184,0.45);
+    margin-top: 0.2rem;
+    font-style: italic;
 }
 
 /* ── Streamlit tab styling ── */
@@ -277,10 +294,9 @@ else:
 # ─────────────────────────────────────────────
 st.markdown("""
 <div class="dash-header">
-  <div class="dash-title">🚦 UnJam Command Center</div>
-  <div class="dash-caption">
-      AI-powered parking intelligence · Bengaluru · Real-time enforcement planning
-  </div>
+  <div class="dash-title">UNJAM</div>
+  <div class="dash-subtitle">AI Traffic Intelligence Platform</div>
+  <div class="dash-caption">Predictive Parking Enforcement &amp; Congestion Prevention</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -520,6 +536,20 @@ with tab_deploy:
             )
             simulation.loc[top_indexes, "simulated_officers"] += 1
 
+        # ── Deployment recommendation (shown first) ───
+        impact = min(
+            (simulation["simulated_officers"] * simulation["enforcement_demand_score"]).sum() / 1000,
+            100,
+        )
+        st.success(
+            f"📋 **Deployment Recommendation** — Deploy {available_officers} officers across "
+            f"{len(simulation[simulation['simulated_officers'] > 0])} priority zones. "
+            f"Highest priority: **{simulation.iloc[0]['enforcement_zone']}**. "
+            f"Estimated congestion improvement: **{impact:.1f}%**"
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
         # ── Resource metrics ──────────────────
         st.markdown('<div class="section-title">📊 Resource Allocation Metrics</div>', unsafe_allow_html=True)
 
@@ -564,18 +594,6 @@ with tab_deploy:
                 xaxis=dict(gridcolor="rgba(255,255,255,0.04)"),
             )
             st.plotly_chart(fig_alloc, use_container_width=True)
-
-        # ── Deployment recommendation ─────────
-        impact = min(
-            (simulation["simulated_officers"] * simulation["enforcement_demand_score"]).sum() / 1000,
-            100,
-        )
-        st.success(
-            f"📋 **Deployment Recommendation** — Deploy {available_officers} officers across "
-            f"{len(simulation[simulation['simulated_officers'] > 0])} priority zones. "
-            f"Highest priority: **{simulation.iloc[0]['enforcement_zone']}**. "
-            f"Estimated congestion improvement: **{impact:.1f}%**"
-        )
 
 
 # ══════════════════════════════════════════════
