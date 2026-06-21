@@ -294,7 +294,7 @@ else:
 # ─────────────────────────────────────────────
 st.markdown("""
 <div class="dash-header">
-  <div class="dash-title">UNJAM AI</div>
+  <div class="dash-title">UNJAM</div>
   <div class="dash-subtitle">AI Traffic Intelligence Platform</div>
   <div class="dash-caption">Predictive Parking Enforcement &amp; Congestion Prevention</div>
 </div>
