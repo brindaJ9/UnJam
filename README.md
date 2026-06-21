@@ -215,3 +215,14 @@ http://localhost:8501
 ✅ Optimizes officer allocation
 
 🚦 Built for smarter cities.
+
+## Screenshots
+
+### Dashboard Overview
+![Dashboard](assets/dashboard.jpg)
+
+### Hotspot Heatmap
+![Heatmap](assets\illegal parking hotspot heatmap.jpg)
+
+### Deployment Planner
+![Deployment](assets/deployment planner.jpg)
