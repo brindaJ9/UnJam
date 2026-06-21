@@ -25,10 +25,23 @@ html, body, [data-testid="stAppViewContainer"] {
     color: #e2e8f0;
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
+            
+/* ── Hide Streamlit top toolbar ── */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
 
 /* ── Reduce default top padding ── */
 .block-container {
-    padding-top: 0.5rem !important;
+    padding-top: 2rem !important;
     padding-bottom: 1rem !important;
 }
 
