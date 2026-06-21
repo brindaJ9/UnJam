@@ -225,4 +225,4 @@ http://localhost:8501
 ![Heatmap](assets\illegal_parking_hotspot_heatmap.jpg)
 
 ### Deployment Planner
-![Deployment](assets\deployment_planner.jpg)
+![Deployment](assets/deployment planner.jpg)
