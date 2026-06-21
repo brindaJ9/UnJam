@@ -378,7 +378,7 @@ with tab_overview:
         st.plotly_chart(fig_hourly, use_container_width=True)
 
     with col_map:
-        st.markdown('<div class="section-title">🗺️ Bengaluru Heatmap</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🗺️ Bengaluru Illegal Parking Hotspots</div>', unsafe_allow_html=True)
 
         required_heat_cols = {"latitude", "longitude", "congestion_impact_score"}
         if required_heat_cols.issubset(df.columns):
