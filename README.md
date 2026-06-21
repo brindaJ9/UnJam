@@ -222,7 +222,7 @@ http://localhost:8501
 ![Dashboard](assets/dashboard.jpg)
 
 ### Hotspot Heatmap
-![Heatmap](assets\illegal_parking_hotspot_heatmap.jpg)
+![Illegal Parking Hotspot Heatmap](assets\illegal_parking_hotspot_heatmap.jpg)
 
 ### Deployment Planner
-![Deployment](assets/deployment planner.jpg)
+![Deployment](assets/deployment_planner.jpg)
