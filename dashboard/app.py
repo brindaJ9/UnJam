@@ -104,56 +104,49 @@ footer {
 .kpi-accent-amber { border-top: 3px solid #f59e0b; }
 .kpi-accent-green { border-top: 3px solid #10b981; }
 
-/* ── Unified rec-tile: card + button fused ── */
-.rec-tile-wrap {
-    position: relative;
-    margin-bottom: 0.6rem;
-}
-.rec-tile {
+/* ── Recommendation card ── */
+.rec-card {
     background: rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px 16px 0 0;   /* top corners rounded, bottom flat */
-    padding: 1rem 1.1rem 0.85rem;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+    border-radius: 18px;
+    padding: 1.2rem 1.4rem;
+    margin-bottom: 0.85rem;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease;
 }
-/* Hover — glow + lift the whole tile */
-.rec-tile-wrap:hover .rec-tile {
-    border-color: rgba(96, 165, 250, 0.35);
-    box-shadow: 0 8px 32px rgba(96, 165, 250, 0.18), 0 2px 8px rgba(0,0,0,0.3);
-    transform: translateY(-2px);
+.rec-card:hover { transform: translateY(-2px); }
+.rec-zone {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    margin-bottom: 0.6rem;
 }
-/* Pull the Streamlit button immediately below into the card */
-.rec-tile-wrap > div[data-testid="stButton"] {
-    margin-top: 0 !important;
+.rec-badge {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    margin-right: 0.4rem;
+    margin-bottom: 0.5rem;
 }
-.rec-tile-wrap > div[data-testid="stButton"] > button {
-    width: 100% !important;
-    background: rgba(255, 255, 255, 0.05) !important;
-    color: rgba(148,163,184,0.7) !important;
-    border: 1px solid rgba(255,255,255,0.1) !important;
-    border-top: none !important;
-    border-radius: 0 0 16px 16px !important;  /* bottom corners rounded only */
-    font-size: 0.73rem !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.04em !important;
-    padding: 0.42rem 0 !important;
-    cursor: pointer !important;
-    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
-    box-shadow: none !important;
+.badge-critical { background: rgba(239,68,68,0.25); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
+.badge-high     { background: rgba(245,158,11,0.25); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
+.badge-medium   { background: rgba(59,130,246,0.25); color: #93c5fd; border: 1px solid rgba(59,130,246,0.4); }
+.badge-low      { background: rgba(16,185,129,0.25); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
+.rec-meta {
+    font-size: 0.78rem;
+    color: rgba(148,163,184,0.85);
+    line-height: 1.8;
 }
-/* Hover — button becomes prominent */
-.rec-tile-wrap:hover > div[data-testid="stButton"] > button {
-    background: rgba(96,165,250,0.15) !important;
-    color: #93c5fd !important;
-    border-color: rgba(96,165,250,0.35) !important;
-    box-shadow: 0 4px 14px rgba(96,165,250,0.15) !important;
-}
-.rec-tile-wrap > div[data-testid="stButton"] > button:active {
-    background: rgba(96,165,250,0.28) !important;
-    transform: translateY(1px) !important;
+.rec-action {
+    font-size: 0.82rem;
+    color: #a5b4fc;
+    font-weight: 600;
+    margin-top: 0.5rem;
 }
 
 /* ── Section heading ── */
@@ -264,6 +257,35 @@ footer {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+/* ── Unified rec-card: kill gap between card and button ── */
+div[data-testid="stVerticalBlock"]:has(> div[data-testid="stVerticalBlockBorderWrapper"]) {
+    gap: 0 !important;
+}
+
+/* ── View Details button — default state ── */
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"] {
+    background: rgba(96,165,250,0.08) !important;
+    border: 1px solid rgba(96,165,250,0.2) !important;
+    border-top: none !important;
+    border-radius: 0 0 18px 18px !important;
+    color: #93c5fd !important;
+    font-size: 0.75rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+    padding: 0.45rem 0 !important;
+    width: 100% !important;
+    transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+    margin-top: 0 !important;
+}
+
+/* ── View Details button — hover state ── */
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover {
+    background: rgba(96,165,250,0.18) !important;
+    border-color: rgba(96,165,250,0.55) !important;
+    box-shadow: 0 0 14px rgba(96,165,250,0.25), 0 4px 16px rgba(0,0,0,0.3) !important;
+    color: #bfdbfe !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -373,7 +395,7 @@ with tab_overview:
             <div class="kpi-sub">AI-calculated deployment need</div>
         </div>""", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:3rem;"></div>', unsafe_allow_html=True)
 
     # ── Charts row ───────────────────────────
     col_chart, col_map = st.columns([1, 1], gap="large")
@@ -755,75 +777,74 @@ def _confidence(priority_score) -> str:
 # ── Dialog definition ─────────────────────────
 @st.dialog("Zone Detail", width="large")
 def show_zone_detail(idx: int):
-    rec        = rec_df.iloc[idx]
-    zone       = rec["enforcement_zone"]
-    risk_label = str(rec.get("risk_level", "N/A")).capitalize()
-    priority   = float(rec.get("priority_score", 0))
-    congestion = _congestion_pct(rec.get("enforcement_demand_score"))
-    officers   = int(rec["recommended_officers"]) if pd.notna(rec.get("recommended_officers")) else "N/A"
-    action     = _get_action(risk_label)
-    reasons    = _build_reasons(zone, rec)
-    confidence = _confidence(priority)
+    rec         = rec_df.iloc[idx]
+    zone        = rec["enforcement_zone"]
+    risk_label  = str(rec.get("risk_level", "N/A")).capitalize()
+    priority    = float(rec.get("priority_score", 0))
+    congestion  = _congestion_pct(rec.get("enforcement_demand_score"))
+    officers    = int(rec["recommended_officers"]) if pd.notna(rec.get("recommended_officers")) else "N/A"
+    action      = _get_action(risk_label)
+    reasons     = _build_reasons(zone, rec)
+    confidence  = _confidence(priority)
     time_window = pf_best.loc[zone, "recommended_time_window"] if zone in pf_best.index else "—"
-    badge_cls  = _badge_css(risk_label)
+    badge_cls   = _badge_css(risk_label)
 
-    # Zone name + badge
-    st.markdown(f"""
-    <div style="margin-bottom:1rem;">
-        <div style="font-size:1.3rem;font-weight:800;color:#f1f5f9;margin-bottom:0.4rem;">
-            📍 {zone}
-        </div>
-        <span class="rec-badge {badge_cls}">{risk_label}</span>
-    </div>
-    <hr style="border-color:rgba(255,255,255,0.08);margin:0.75rem 0;">
-    """, unsafe_allow_html=True)
+    DIV = '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:1rem 0;">'
+    SH  = 'font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(148,163,184,0.5);margin-bottom:0.6rem;'
 
-    # Two columns: why flagged | risk metrics
-    d_left, d_right = st.columns([1.2, 1], gap="large")
+    # ── Zone name + badge ──
+    st.markdown(
+        f'<div style="font-size:1.35rem;font-weight:800;color:#f1f5f9;'
+        f'line-height:1.3;word-break:break-word;margin-bottom:0.5rem;">📍 {zone}</div>'
+        f'<span class="rec-badge {badge_cls}">{risk_label}</span>',
+        unsafe_allow_html=True,
+    )
 
-    with d_left:
-        st.markdown("""
-        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;
-                    text-transform:uppercase;color:rgba(148,163,184,0.6);
-                    margin-bottom:0.6rem;">Why was this location flagged?</div>
-        """, unsafe_allow_html=True)
-        for r in reasons:
-            st.markdown(
-                f'<div style="font-size:0.82rem;color:#86efac;padding:0.22rem 0;">'
-                f'<span style="color:#4ade80;margin-right:0.5rem;">✓</span>{r}</div>',
-                unsafe_allow_html=True,
-            )
+    st.markdown(DIV, unsafe_allow_html=True)
 
-    with d_right:
-        st.markdown("""
-        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;
-                    text-transform:uppercase;color:rgba(148,163,184,0.6);
-                    margin-bottom:0.6rem;">Risk Metrics</div>
-        """, unsafe_allow_html=True)
-        m1, m2, m3 = st.columns(3)
-        m1.metric("Risk Score",        f"{priority:.1f}")
-        m2.metric("Congestion Impact", congestion)
-        m3.metric("Confidence",        confidence)
+    # ── Why flagged ──
+    st.markdown(f'<div style="{SH}">Why this location was flagged</div>', unsafe_allow_html=True)
+    for r in reasons:
+        st.markdown(
+            f'<div style="display:flex;align-items:flex-start;gap:0.5rem;'
+            f'padding:0.25rem 0;font-size:0.87rem;color:#86efac;line-height:1.5;">'
+            f'<span style="color:#4ade80;flex-shrink:0;">&#10003;</span>'
+            f'<span>{r}</span></div>',
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("<hr style='border-color:rgba(255,255,255,0.08);margin:0.9rem 0;'>",
-                unsafe_allow_html=True)
+    st.markdown(DIV, unsafe_allow_html=True)
 
-    # Recommended actions
-    st.markdown("""
-    <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.06em;
-                text-transform:uppercase;color:rgba(148,163,184,0.6);
-                margin-bottom:0.6rem;">Recommended Actions</div>
-    """, unsafe_allow_html=True)
+    # ── Risk metrics ──
+    st.markdown(f'<div style="{SH}">Risk Metrics</div>', unsafe_allow_html=True)
+    for label, value in [
+        ("Risk Score",        f"{priority:.1f}"),
+        ("Congestion Impact", congestion),
+        ("Confidence",        confidence),
+    ]:
+        st.markdown(
+            f'<div style="display:flex;justify-content:space-between;'
+            f'padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
+            f'<span style="font-size:0.87rem;color:rgba(148,163,184,0.7);">{label}</span>'
+            f'<span style="font-size:0.87rem;font-weight:700;color:#f1f5f9;">{value}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
-    action_items = [
+    st.markdown(DIV, unsafe_allow_html=True)
+
+    # ── Recommended actions ──
+    st.markdown(f'<div style="{SH}">Recommended Actions</div>', unsafe_allow_html=True)
+    for item in [
         f"Deploy {officers} officers to this zone",
         f"Increase monitoring during peak hours — suggested window: {time_window}",
         action,
-    ]
-    for item in action_items:
+    ]:
         st.markdown(
-            f'<div style="font-size:0.84rem;color:#a5b4fc;padding:0.22rem 0;">'
-            f'<span style="color:#818cf8;margin-right:0.5rem;">✓</span>{item}</div>',
+            f'<div style="display:flex;align-items:flex-start;gap:0.5rem;'
+            f'padding:0.25rem 0;font-size:0.87rem;color:#a5b4fc;line-height:1.5;">'
+            f'<span style="color:#818cf8;flex-shrink:0;">&#10003;</span>'
+            f'<span>{item}</span></div>',
             unsafe_allow_html=True,
         )
 
@@ -867,48 +888,50 @@ with tab_ai:
             <div class="kpi-sub">Across top 12 flagged zones</div>
         </div>""", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:4rem;"></div>', unsafe_allow_html=True)
     st.markdown('<div class="section-title">🗺️ Zone Recommendations</div>', unsafe_allow_html=True)
 
-    # ── Level 2: Compact unified card grid (4 columns) ──
+    # ── Level 2: Compact card grid (4 columns) ──
     COLS = 4
     for row_start in range(0, len(rec_df), COLS):
         row_slice = rec_df.iloc[row_start : row_start + COLS]
         cols = st.columns(COLS, gap="small")
         for col, (idx, rec) in zip(cols, row_slice.iterrows()):
-            zone        = rec["enforcement_zone"]
-            risk_label  = str(rec.get("risk_level", "N/A")).capitalize()
-            priority    = f"{rec.get('priority_score', 0):.1f}"
-            congestion  = _congestion_pct(rec.get("enforcement_demand_score"))
-            badge_cls   = _badge_css(risk_label)
+            zone       = rec["enforcement_zone"]
+            risk_label = str(rec.get("risk_level", "N/A")).capitalize()
+            priority   = f"{rec.get('priority_score', 0):.1f}"
+            congestion = _congestion_pct(rec.get("enforcement_demand_score"))
+            badge_cls  = _badge_css(risk_label)
             display_name = zone.split(" - ", 1)[-1] if " - " in zone else zone
 
             with col:
-                # Wrap in .rec-tile-wrap so the CSS sibling selector
-                # can reach the st.button rendered directly after the markdown
-                st.markdown(f"""
-                <div class="rec-tile-wrap">
-                  <div class="rec-tile">
-                    <div style="font-size:0.78rem;font-weight:700;color:#f1f5f9;
-                                line-height:1.3;min-height:2.3em;margin-bottom:0.4rem;">
-                        📍 {display_name}
+                # Unified container: card content + button in one block
+                with st.container(border=True):
+                    st.markdown(f"""
+                    <div style="padding:0.65rem 0.6rem 0.5rem 0.6rem;">
+                        <div style="font-size:0.78rem;font-weight:700;color:#f1f5f9;
+                                    line-height:1.35;min-height:2.5em;margin-bottom:0.4rem;">
+                            📍 {display_name}
+                        </div>
+                        <span class="rec-badge {badge_cls}"
+                              style="display:inline-block;margin-bottom:0.5rem;">
+                            {risk_label}
+                        </span>
+                        <div style="font-size:0.73rem;color:rgba(148,163,184,0.85);
+                                    line-height:1.75;">
+                            Risk Score: <b style="color:#f1f5f9;">{priority}</b><br>
+                            Est. Congestion: <b style="color:#f1f5f9;">{congestion}</b>
+                        </div>
                     </div>
-                    <div style="margin-bottom:0.45rem;">
-                        <span class="rec-badge {badge_cls}">{risk_label}</span>
-                    </div>
-                    <div style="font-size:0.74rem;color:rgba(148,163,184,0.8);line-height:1.75;">
-                        Risk Score: <b style="color:#f1f5f9;">{priority}</b><br>
-                        Est. Congestion: <b style="color:#f1f5f9;">{congestion}</b>
-                    </div>
-                  </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
 
-                if st.button("View Details →", key=f"detail_{idx}", use_container_width=True):
-                    st.session_state["detail_zone_idx"] = idx
-                    st.rerun()
-
-                # Close the wrapper div
-                st.markdown("</div>", unsafe_allow_html=True)
+                    if st.button(
+                        "View Details",
+                        key=f"detail_{idx}",
+                        use_container_width=True,
+                    ):
+                        st.session_state["detail_zone_idx"] = idx
+                        st.rerun()
 
 
 # ══════════════════════════════════════════════
