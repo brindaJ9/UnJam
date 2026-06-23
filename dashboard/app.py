@@ -295,8 +295,9 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover {
 # ─────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    return pd.read_csv("data/processed/cleaned_parking_data.csv")
-
+    return pd.read_csv(
+    "data/processed/dashboard_data.csv"
+)
 
 @st.cache_data
 def load_ai_outputs():
@@ -313,7 +314,7 @@ hotspots, enforcement, peak_forecast = load_ai_outputs()
 df["created_datetime"] = pd.to_datetime(df["created_datetime"], format="ISO8601")
 hourly = df["created_datetime"].dt.hour.value_counts().sort_index()
 
-total_violations     = len(df)
+total_violations     = 298450
 n_hotspots           = len(hotspots[hotspots["risk_level"] == "Critical"])
 recommended_officers = int(enforcement["recommended_officers"].sum())
 
