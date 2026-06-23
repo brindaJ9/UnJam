@@ -25,10 +25,23 @@ html, body, [data-testid="stAppViewContainer"] {
     color: #e2e8f0;
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
+            
+/* ── Hide Streamlit top toolbar ── */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
 
 /* ── Reduce default top padding ── */
 .block-container {
-    padding-top: 0.5rem !important;
+    padding-top: 2rem !important;
     padding-bottom: 1rem !important;
 }
 
@@ -523,11 +536,12 @@ st.markdown("""
 # ─────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────
-tab_overview, tab_risk, tab_deploy, tab_ai, tab_impact = st.tabs([
+tab_overview, tab_risk, tab_deploy, tab_ai, tab_impact, tab_impact = st.tabs([
     "🏙️  Overview",
     "⚠️  Risk Intelligence",
     "🚓  Deployment Planner",
     "🤖  AI Recommendations",
+    "📈  Impact & Performance",
     "📈  Impact & Performance",
 ])
 
@@ -864,13 +878,59 @@ with tab_deploy:
 
 
 # ══════════════════════════════════════════════
-# TAB 4 · AI RECOMMENDATIONS  (with XAI)
+# TAB 4 · AI RECOMMENDATIONS  (with Explainable AI)
 # ══════════════════════════════════════════════
 with tab_ai:
 
     st.markdown(f'<div class="section-title">🤖 Zone Intelligence Cards &nbsp;<span style="font-size:0.75rem;color:rgba(148,163,184,0.5);font-weight:400;text-transform:none;letter-spacing:0">· {len(rec_df)} zones</span></div>', unsafe_allow_html=True)
 
-    # Build recommendation data from existing outputs
+    # ── City-wide baselines for explainability ──
+    city_avg_congestion  = df["congestion_impact_score"].mean()
+    city_avg_violations  = df.groupby("enforcement_zone")["violation_count"].sum().mean()
+    city_avg_veh_impact  = df["vehicle_impact"].mean()
+
+    # Peak-hour (17–20) violation rate vs city average
+    peak_mask            = df["hour"].between(17, 20)
+    zone_peak_viol       = (
+        df[peak_mask]
+        .groupby("enforcement_zone")["violation_count"]
+        .sum()
+        .rename("peak_violations")
+    )
+    zone_total_viol      = (
+        df.groupby("enforcement_zone")["violation_count"]
+        .sum()
+        .rename("total_violations")
+    )
+    city_peak_avg        = zone_peak_viol.mean()
+
+    # Heavy vehicles (vehicle_impact >= 3 means heavy/multi-axle)
+    heavy_mask           = df["vehicle_impact"] >= 3
+    zone_heavy_pct       = (
+        df[heavy_mask]
+        .groupby("enforcement_zone")["vehicle_impact"]
+        .count()
+        .div(df.groupby("enforcement_zone")["vehicle_impact"].count())
+        .fillna(0)
+        .rename("heavy_pct")
+    )
+    city_heavy_pct_avg   = zone_heavy_pct.mean()
+
+    # Repeat-violation proxy: rows per zone / unique days
+    df["date"] = df["created_datetime"].dt.date
+    zone_days            = df.groupby("enforcement_zone")["date"].nunique().rename("active_days")
+    zone_daily_rate      = (zone_total_viol / zone_days).rename("daily_rate")
+    city_daily_rate_avg  = zone_daily_rate.mean()
+
+    # Peak forecast — best window per zone
+    pf_best = (
+        peak_forecast
+        .sort_values("hourly_risk_score", ascending=False)
+        .drop_duplicates("enforcement_zone")[["enforcement_zone", "recommended_time_window", "hourly_risk_score"]]
+        .set_index("enforcement_zone")
+    )
+
+    # Build recommendation data
     rec_df = (
         hotspots
         .merge(
@@ -907,76 +967,96 @@ with tab_ai:
         pct = min(score / rec_df["enforcement_demand_score"].max() * 100, 100)
         return f"{pct:.0f}%"
 
-    def priority_label(risk_level):
-        mapping = {"Critical": "High", "High": "High", "Medium": "Medium", "Low": "Low"}
-        return mapping.get(str(risk_level).capitalize(), "Medium")
+    def build_reasons(zone, rec):
+        """Return a list of (icon, reason) tuples — only truths, derived from data."""
+        reasons = []
 
-    # Enforcement window from peak_forecast if available
-    _forecast_window = {}
-    if "enforcement_zone" in peak_forecast.columns and "recommended_time_window" in peak_forecast.columns:
-        _forecast_window = peak_forecast.set_index("enforcement_zone")["recommended_time_window"].to_dict()
+        # 1. Congestion impact above city average
+        zone_cong = rec.get("avg_congestion_score", None)
+        if pd.notna(zone_cong) and zone_cong > city_avg_congestion:
+            reasons.append(("✓", f"Congestion impact ({zone_cong:.1f}) exceeds city average ({city_avg_congestion:.1f})"))
 
-    # Render cards in a 3-column grid
+        # 2. Peak-hour violations above city average
+        ph = zone_peak_viol.get(zone, 0)
+        if ph > city_peak_avg:
+            reasons.append(("✓", "Peak-hour violations exceed city average (5 PM – 8 PM window)"))
+
+        # 3. High daily repeat violations
+        dr = zone_daily_rate.get(zone, 0)
+        if pd.notna(dr) and dr > city_daily_rate_avg:
+            reasons.append(("✓", "Repeated daily violations observed at this location"))
+
+        # 4. Heavy vehicle activity
+        hv = zone_heavy_pct.get(zone, 0)
+        if pd.notna(hv) and hv > city_heavy_pct_avg:
+            reasons.append(("✓", f"Heavy vehicle activity above average ({hv*100:.0f}% of violations)"))
+
+        # 5. High violation frequency score (from enforcement data)
+        freq = rec.get("frequency_score", None)
+        if pd.notna(freq) and freq > 50:
+            reasons.append(("✓", f"High violation frequency score ({freq:.0f}/100)"))
+
+        return reasons if reasons else [("✓", "Elevated combined risk score from enforcement model")]
+
+    # ── Render cards in a 3-column grid ──────
     cols_per_row = 3
     rows = [rec_df.iloc[i:i+cols_per_row] for i in range(0, len(rec_df), cols_per_row)]
 
-    for row in rows:
+    # Merge frequency_score into rec_df for reason generation
+    rec_df = rec_df.merge(
+        enforcement[["enforcement_zone", "frequency_score", "avg_congestion_score"]],
+        on="enforcement_zone",
+        how="left",
+        suffixes=("", "_enf"),
+    )
+
+    for row_slice in rows:
         cols = st.columns(cols_per_row, gap="medium")
-        for col, (_, rec) in zip(cols, row.iterrows()):
-            zone_name  = rec["enforcement_zone"]
-            # Truncate long zone names to two lines max
-            display_name = zone_name if len(zone_name) <= 55 else zone_name[:53] + "…"
+        for col, (_, rec) in zip(cols, row_slice.iterrows()):
+            zone       = rec["enforcement_zone"]
             badge_cls  = get_badge_class(rec.get("risk_level", ""))
             risk_label = str(rec.get("risk_level", "N/A")).capitalize()
             action     = get_action(rec.get("risk_level", ""))
             officers   = int(rec["recommended_officers"]) if pd.notna(rec.get("recommended_officers")) else "N/A"
             congestion = predicted_congestion(rec.get("enforcement_demand_score"))
             priority   = f"{rec.get('priority_score', 0):.1f}"
-            p_label    = priority_label(rec.get("risk_level", ""))
-            window     = _forecast_window.get(zone_name, "Peak hours")
+            reasons    = build_reasons(zone, rec)
+            time_window = pf_best.loc[zone, "recommended_time_window"] if zone in pf_best.index else "—"
 
-            # XAI reasons — data-derived only
-            reasons    = build_xai_reasons(zone_name)
             reasons_html = "".join(
-                f'<li style="margin-bottom:0.2rem;">• {r}</li>' for r in reasons
+                f'<div style="color:#86efac;font-size:0.74rem;margin:0.18rem 0;">'
+                f'<span style="color:#4ade80;margin-right:0.4rem;">{icon}</span>{text}</div>'
+                for icon, text in reasons
             )
 
             with col:
                 st.markdown(f"""
                 <div class="rec-card">
-                    <div class="rec-zone" title="{zone_name}">📍 {display_name}</div>
+                    <div class="rec-zone">📍 {zone}</div>
                     <span class="rec-badge {badge_cls}">{risk_label}</span>
-
-                    <div class="rec-meta" style="margin-top:0.6rem;">
-                        🎯 <b>Risk Score:</b> {priority} &nbsp;|&nbsp;
-                        📈 <b>Congestion:</b> {congestion}
+                    <div class="rec-meta" style="margin-top:0.5rem;">
+                        🎯 Risk Score: <b>{priority}</b> &nbsp;|&nbsp;
+                        📈 Est. Congestion: <b>{congestion}</b>
                     </div>
-
-                    <div style="margin-top:0.7rem; font-size:0.75rem;
-                                color:rgba(148,163,184,0.7); font-weight:600;
-                                letter-spacing:0.05em; text-transform:uppercase;">
-                        Why flagged
+                    <div style="margin-top:0.75rem;margin-bottom:0.4rem;font-size:0.72rem;
+                                font-weight:700;letter-spacing:0.05em;color:rgba(148,163,184,0.6);
+                                text-transform:uppercase;">
+                        Why was this location flagged?
                     </div>
-                    <ul style="margin:0.3rem 0 0 0; padding:0;
-                               list-style:none; font-size:0.78rem;
-                               color:rgba(203,213,225,0.85); line-height:1.6;">
-                        {reasons_html}
-                    </ul>
-
-                    <hr class="rec-divider">
-
-                    <div style="font-size:0.75rem;
-                                color:rgba(148,163,184,0.7); font-weight:600;
-                                letter-spacing:0.05em; text-transform:uppercase;">
-                        Recommended Action
-                    </div>
-                    <div class="rec-action" style="margin-top:0.25rem;">
-                        → {action}
-                    </div>
-                    <div class="rec-meta" style="margin-top:0.4rem; font-size:0.76rem;">
-                        👮 Deploy <b>{officers}</b> officers &nbsp;·&nbsp;
-                        Priority: <b>{p_label}</b><br>
-                        🕐 Window: <b>{window}</b>
+                    {reasons_html}
+                    <div style="margin-top:0.8rem;padding-top:0.6rem;
+                                border-top:1px solid rgba(255,255,255,0.07);">
+                        <div style="font-size:0.72rem;font-weight:700;letter-spacing:0.05em;
+                                    color:rgba(148,163,184,0.6);text-transform:uppercase;
+                                    margin-bottom:0.35rem;">Recommended Action</div>
+                        <div class="rec-action">→ {action}</div>
+                        <div style="font-size:0.76rem;color:rgba(148,163,184,0.75);margin-top:0.3rem;">
+                            👮 Deploy <b style="color:#f1f5f9;">{officers}</b> officers
+                            &nbsp;·&nbsp;
+                            🕐 <b style="color:#f1f5f9;">{time_window}</b>
+                            &nbsp;·&nbsp;
+                            Priority: <b style="color:#f1f5f9;">{risk_label}</b>
+                        </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -987,119 +1067,143 @@ with tab_ai:
 # ══════════════════════════════════════════════
 with tab_impact:
 
-    if not _has_impact_cols:
-        st.warning("Required columns (month, congestion_impact_score, enforcement_zone) not found in dataset.")
-    else:
-        # ── Summary KPIs ─────────────────────
-        ip1, ip2, ip3, ip4 = st.columns(4)
+    st.markdown("""
+    <div style="font-size:0.78rem;color:rgba(148,163,184,0.55);margin-bottom:1rem;font-style:italic;">
+        Historical trend analysis based on recorded violation data.
+        This is not a live dashboard — it reflects patterns across the observation period.
+    </div>
+    """, unsafe_allow_html=True)
 
-        with ip1:
-            st.markdown(f"""
-            <div class="kpi-card kpi-accent-blue">
-                <div class="kpi-label">Current Avg Risk Score</div>
-                <div class="kpi-value">{current_avg_score}</div>
-                <div class="kpi-sub">{latest_month_name} · latest recorded</div>
-            </div>""", unsafe_allow_html=True)
+    # ── Pre-compute monthly aggregates ───────
+    MONTH_NAMES = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                   7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
 
-        with ip2:
-            st.markdown(f"""
-            <div class="kpi-card kpi-accent-red">
-                <div class="kpi-label">Highest Risk Month</div>
-                <div class="kpi-value">{highest_risk_month_name}</div>
-                <div class="kpi-sub">Peak congestion period</div>
-            </div>""", unsafe_allow_html=True)
+    monthly_congestion = (
+        df.groupby("month")["congestion_impact_score"]
+        .mean()
+        .reset_index()
+        .rename(columns={"month": "Month", "congestion_impact_score": "Avg Congestion Score"})
+    )
+    monthly_congestion["Month Label"] = monthly_congestion["Month"].map(MONTH_NAMES)
 
-        with ip3:
-            st.markdown(f"""
-            <div class="kpi-card kpi-accent-green">
-                <div class="kpi-label">Most Improved Zone</div>
-                <div class="kpi-value" style="font-size:1.1rem; line-height:1.3;">
-                    {most_improved_zone}
-                </div>
-                <div class="kpi-sub">Largest congestion reduction</div>
-            </div>""", unsafe_allow_html=True)
+    # High-risk zone count per month using the deployment planner threshold
+    monthly_highrisk = (
+        df[df["congestion_impact_score"] >= risk_threshold]
+        .groupby("month")["location"]
+        .nunique()
+        .reset_index()
+        .rename(columns={"month": "Month", "location": "High-Risk Locations"})
+    )
+    monthly_highrisk["Month Label"] = monthly_highrisk["Month"].map(MONTH_NAMES)
 
-        with ip4:
-            st.markdown(f"""
-            <div class="kpi-card kpi-accent-amber">
-                <div class="kpi-label">Zones Improving</div>
-                <div class="kpi-value">{total_improved_zones}</div>
-                <div class="kpi-sub">Showing reduced congestion</div>
-            </div>""", unsafe_allow_html=True)
+    # ── Row 1: Monthly congestion + high-risk count ──
+    ic1, ic2 = st.columns(2, gap="large")
 
-        st.markdown("<br>", unsafe_allow_html=True)
+    with ic1:
+        st.markdown('<div class="section-title">📉 Monthly Congestion Risk Trend</div>', unsafe_allow_html=True)
+        st.caption("Tracks historical changes in average congestion impact across the city.")
 
-        # ── Row 1: Monthly trend + High-risk zones over time ──
-        tr1, tr2 = st.columns(2, gap="large")
+        fig_mc = px.line(
+            monthly_congestion,
+            x="Month Label",
+            y="Avg Congestion Score",
+            markers=True,
+            template="plotly_dark",
+            color_discrete_sequence=["#f59e0b"],
+        )
+        fig_mc.update_layout(
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=0, r=0, t=10, b=0),
+            font_color="#cbd5e1",
+            xaxis=dict(gridcolor="rgba(255,255,255,0.05)", categoryorder="array",
+                       categoryarray=list(MONTH_NAMES.values())),
+            yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+        )
+        fig_mc.update_traces(line=dict(color="#f59e0b", width=2.5),
+                             marker=dict(size=7, color="#fcd34d"))
+        st.plotly_chart(fig_mc, use_container_width=True)
 
-        with tr1:
-            st.markdown('<div class="section-title">📉 Monthly Congestion Risk Trend</div>', unsafe_allow_html=True)
-            st.caption("Historical congestion impact across recorded enforcement periods.")
+    with ic2:
+        st.markdown('<div class="section-title">🔴 High-Risk Zones Over Time</div>', unsafe_allow_html=True)
+        st.caption(f"Locations exceeding congestion score ≥ {risk_threshold} — using active deployment threshold.")
 
-            fig_monthly = px.area(
-                monthly_trend,
+        if monthly_highrisk.empty:
+            st.info(f"No locations exceeded a congestion score of {risk_threshold} in any month. Try lowering the Deployment Planner threshold.")
+        else:
+            fig_hr = px.line(
+                monthly_highrisk,
                 x="Month Label",
-                y="Avg Congestion Score",
+                y="High-Risk Locations",
                 markers=True,
                 template="plotly_dark",
-                color_discrete_sequence=["#60a5fa"],
-                labels={"Month Label": "Month", "Avg Congestion Score": "Avg Congestion Score"},
+                color_discrete_sequence=["#ef4444"],
             )
-            fig_monthly.update_layout(
+            fig_hr.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 margin=dict(l=0, r=0, t=10, b=0),
                 font_color="#cbd5e1",
-                xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
+                xaxis=dict(gridcolor="rgba(255,255,255,0.05)", categoryorder="array",
+                           categoryarray=list(MONTH_NAMES.values())),
                 yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
             )
-            fig_monthly.update_traces(
-                line=dict(color="#60a5fa", width=2.5),
-                marker=dict(size=7, color="#60a5fa"),
-                fillcolor="rgba(96,165,250,0.12)",
-            )
-            st.plotly_chart(fig_monthly, use_container_width=True)
+            fig_hr.update_traces(line=dict(color="#ef4444", width=2.5),
+                                 marker=dict(size=7, color="#fca5a5"))
+            st.plotly_chart(fig_hr, use_container_width=True)
 
-        with tr2:
-            st.markdown('<div class="section-title">⚠️ High-Risk Zones Over Time</div>', unsafe_allow_html=True)
-            st.caption("Number of enforcement zones classified as high risk each month.")
+    # ── Section 3: Most Improved Zones ───────
+    st.markdown('<div class="section-title">🏆 Most Improved Zones</div>', unsafe_allow_html=True)
+    st.caption("Locations showing the largest reduction in average congestion risk from earliest to latest recorded month.")
 
-            if len(high_risk_zone_trend) > 0:
-                fig_hrzones = px.area(
-                    high_risk_zone_trend,
-                    x="Month Label",
-                    y="High Risk Zones",
-                    markers=True,
-                    template="plotly_dark",
-                    color_discrete_sequence=["#f87171"],
-                    labels={"Month Label": "Month"},
-                )
-                fig_hrzones.update_layout(
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=0, r=0, t=10, b=0),
-                    font_color="#cbd5e1",
-                    xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                    yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
-                )
-                fig_hrzones.update_traces(
-                    line=dict(color="#f87171", width=2.5),
-                    marker=dict(size=7, color="#f87171"),
-                    fillcolor="rgba(248,113,113,0.1)",
-                )
-                st.plotly_chart(fig_hrzones, use_container_width=True)
-            else:
-                st.info("Insufficient monthly data to plot high-risk zone trend.")
+    zone_monthly = (
+        df.groupby(["enforcement_zone", "month"])["congestion_impact_score"]
+        .mean()
+        .reset_index()
+    )
 
-        # ── Row 2: Most improved zones table ──
-        st.markdown('<div class="section-title">✅ Most Improved Zones</div>', unsafe_allow_html=True)
-        st.caption("Locations showing the largest reduction in congestion impact over time.")
+    # Need at least 2 months of data per zone
+    zone_month_counts = zone_monthly.groupby("enforcement_zone")["month"].nunique()
+    multi_month_zones = zone_month_counts[zone_month_counts >= 2].index
+    zone_monthly_filtered = zone_monthly[zone_monthly["enforcement_zone"].isin(multi_month_zones)]
 
-        if len(improvement_df) > 0:
+    if zone_monthly_filtered.empty:
+        st.info("Insufficient monthly data to calculate zone improvement trends.")
+    else:
+        earliest = (
+            zone_monthly_filtered.sort_values("month")
+            .groupby("enforcement_zone")
+            .first()
+            .rename(columns={"congestion_impact_score": "Initial Risk", "month": "First Month"})
+        )
+        latest = (
+            zone_monthly_filtered.sort_values("month")
+            .groupby("enforcement_zone")
+            .last()
+            .rename(columns={"congestion_impact_score": "Current Risk", "month": "Last Month"})
+        )
+        improvement_df = earliest[["Initial Risk"]].join(latest[["Current Risk"]])
+        improvement_df["Improvement"] = (
+            improvement_df["Initial Risk"] - improvement_df["Current Risk"]
+        ).round(2)
+
+        top_improved = (
+            improvement_df[improvement_df["Improvement"] > 0]
+            .sort_values("Improvement", ascending=False)
+            .head(10)
+            .reset_index()
+            .rename(columns={"enforcement_zone": "Zone"})
+        )
+        top_improved["Initial Risk"] = top_improved["Initial Risk"].round(2)
+        top_improved["Current Risk"]  = top_improved["Current Risk"].round(2)
+
+        if top_improved.empty:
+            st.info("No zones show improvement over the recorded period.")
+        else:
             st.dataframe(
-                improvement_df[["Zone", "Initial Score", "Latest Score", "Improvement %"]],
+                top_improved[["Zone", "Initial Risk", "Current Risk", "Improvement"]],
                 use_container_width=True,
                 hide_index=True,
             )
-        else:
-            st.info("No zones show improvement between the earliest and latest recorded months.")
+
+
