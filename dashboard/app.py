@@ -295,8 +295,9 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover {
 # ─────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    return pd.read_csv("data/processed/cleaned_parking_data.csv")
-
+    return pd.read_csv(
+    "data/processed/dashboard_data.csv"
+)
 
 @st.cache_data
 def load_ai_outputs():
