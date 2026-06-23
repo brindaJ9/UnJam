@@ -253,43 +253,6 @@ footer {
     color: #6ee7b7 !important;
 }
 
-/* ── Expander glass style ── */
-[data-testid="stExpander"] {
-    background: rgba(255,255,255,0.04) !important;
-    border: 1px solid rgba(255,255,255,0.08) !important;
-    border-radius: 12px !important;
-}
-
-/* ── Mini stat pill ── */
-.mini-stat {
-    background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 14px;
-    padding: 1rem 1.2rem;
-    text-align: center;
-}
-.mini-stat-value {
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: #f1f5f9;
-    line-height: 1;
-}
-.mini-stat-label {
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: rgba(148,163,184,0.75);
-    margin-top: 0.35rem;
-}
-
-/* ── Rec card divider ── */
-.rec-divider {
-    border: none;
-    border-top: 1px solid rgba(255,255,255,0.07);
-    margin: 0.6rem 0;
-}
-
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
@@ -338,188 +301,6 @@ else:
     high_risk_hours = "N/A"
     hourly_risk = None
 
-# ─────────────────────────────────────────────
-# PRE-COMPUTE: IMPACT & PERFORMANCE DATA
-# ─────────────────────────────────────────────
-_has_impact_cols = {"month", "congestion_impact_score", "enforcement_zone"}.issubset(df.columns)
-
-if _has_impact_cols:
-    # Monthly congestion trend
-    monthly_trend = (
-        df.groupby("month")["congestion_impact_score"]
-        .mean()
-        .reset_index()
-        .rename(columns={"month": "Month", "congestion_impact_score": "Avg Congestion Score"})
-    )
-    monthly_trend["Avg Congestion Score"] = monthly_trend["Avg Congestion Score"].round(2)
-
-    # Current average risk score (most recent month)
-    latest_month = monthly_trend["Month"].max()
-    earliest_month = monthly_trend["Month"].min()
-    current_avg_score = round(
-        monthly_trend.loc[monthly_trend["Month"] == latest_month, "Avg Congestion Score"].values[0], 2
-    )
-    highest_risk_month = monthly_trend.loc[
-        monthly_trend["Avg Congestion Score"].idxmax(), "Month"
-    ]
-
-    # High-risk zones per month (zones whose avg score > city avg)
-    city_avg_score = df["congestion_impact_score"].mean()
-    zone_monthly = (
-        df.groupby(["month", "enforcement_zone"])["congestion_impact_score"]
-        .mean()
-        .reset_index()
-    )
-    # Use a fixed threshold of city average for "high-risk" classification here
-    high_risk_zone_trend = (
-        zone_monthly[zone_monthly["congestion_impact_score"] > city_avg_score]
-        .groupby("month")
-        .size()
-        .reset_index(name="High Risk Zones")
-        .rename(columns={"month": "Month"})
-    )
-
-    # Most improved zones: earliest vs latest month
-    zone_early = (
-        zone_monthly[zone_monthly["month"] == earliest_month]
-        .set_index("enforcement_zone")["congestion_impact_score"]
-        .rename("initial_score")
-    )
-    zone_late = (
-        zone_monthly[zone_monthly["month"] == latest_month]
-        .set_index("enforcement_zone")["congestion_impact_score"]
-        .rename("latest_score")
-    )
-    improvement_df = pd.concat([zone_early, zone_late], axis=1).dropna()
-    improvement_df["improvement_pct"] = (
-        (improvement_df["initial_score"] - improvement_df["latest_score"])
-        / improvement_df["initial_score"].replace(0, pd.NA)
-        * 100
-    ).round(1)
-    improvement_df = (
-        improvement_df[improvement_df["improvement_pct"] > 0]
-        .sort_values("improvement_pct", ascending=False)
-        .head(10)
-        .reset_index()
-        .rename(columns={
-            "enforcement_zone": "Zone",
-            "initial_score":    "Initial Score",
-            "latest_score":     "Latest Score",
-            "improvement_pct":  "Improvement %",
-        })
-    )
-    improvement_df["Initial Score"] = improvement_df["Initial Score"].round(2)
-    improvement_df["Latest Score"]  = improvement_df["Latest Score"].round(2)
-
-    most_improved_zone = (
-        improvement_df.iloc[0]["Zone"] if len(improvement_df) > 0 else "N/A"
-    )
-    # Shorten long zone names for the KPI card
-    if len(most_improved_zone) > 35:
-        most_improved_zone = most_improved_zone[:33] + "…"
-
-    total_improved_zones = len(improvement_df)
-
-    # Map month numbers → abbreviated names for display
-    _MONTH_NAMES = {
-        1:"Jan", 2:"Feb", 3:"Mar", 4:"Apr", 5:"May",
-        6:"Jun", 7:"Jul", 8:"Aug", 9:"Sep", 10:"Oct",
-        11:"Nov", 12:"Dec",
-    }
-    monthly_trend["Month Label"] = monthly_trend["Month"].map(_MONTH_NAMES).fillna(monthly_trend["Month"].astype(str))
-    high_risk_zone_trend["Month Label"] = high_risk_zone_trend["Month"].map(_MONTH_NAMES).fillna(high_risk_zone_trend["Month"].astype(str))
-    highest_risk_month_name = _MONTH_NAMES.get(int(highest_risk_month), str(highest_risk_month))
-    latest_month_name       = _MONTH_NAMES.get(int(latest_month), str(latest_month))
-
-# ─────────────────────────────────────────────
-# PRE-COMPUTE: XAI ZONE STATISTICS
-# ─────────────────────────────────────────────
-_heavy_types = {"BUS", "TRUCK", "TANKER", "MINI BUS", "HEAVY VEHICLE"}
-_peak_hours  = {8, 9, 10, 17, 18, 19, 20}
-
-_city_avg_congestion = df["congestion_impact_score"].mean()
-
-# Per-zone: avg congestion, peak-hour ratio, heavy vehicle ratio, violations per day
-_zone_congestion = df.groupby("enforcement_zone")["congestion_impact_score"].mean()
-_zone_total_viol = df.groupby("enforcement_zone").size()
-
-if "hour" in df.columns:
-    _peak_df = df[df["hour"].isin(_peak_hours)]
-    _zone_peak_viol = _peak_df.groupby("enforcement_zone").size()
-else:
-    _zone_peak_viol = pd.Series(dtype=float)
-
-if "vehicle_type" in df.columns:
-    _heavy_df = df[df["vehicle_type"].str.upper().isin(_heavy_types)]
-    _zone_heavy_viol = _heavy_df.groupby("enforcement_zone").size()
-else:
-    _zone_heavy_viol = pd.Series(dtype=float)
-
-_city_avg_peak_ratio  = (
-    (_zone_peak_viol / _zone_total_viol.replace(0, pd.NA)).mean()
-    if len(_zone_peak_viol) > 0 else 0
-)
-_city_avg_heavy_ratio = (
-    (_zone_heavy_viol / _zone_total_viol.replace(0, pd.NA)).mean()
-    if len(_zone_heavy_viol) > 0 else 0
-)
-
-# violations per active day per zone
-if "created_datetime" in df.columns:
-    _df_dates = df.copy()
-    _df_dates["_date"] = df["created_datetime"].dt.date
-    _zone_days = _df_dates.groupby("enforcement_zone")["_date"].nunique().replace(0, 1)
-    _zone_vpd  = _zone_total_viol / _zone_days
-    _city_avg_vpd = _zone_vpd.mean()
-else:
-    _zone_vpd     = pd.Series(dtype=float)
-    _city_avg_vpd = 0
-
-
-def build_xai_reasons(zone_name: str) -> list[str]:
-    """Return a list of data-supported explanation strings for a given zone."""
-    reasons = []
-
-    # 1. Congestion above city average
-    zone_cong = _zone_congestion.get(zone_name, None)
-    if zone_cong is not None and zone_cong > _city_avg_congestion * 1.2:
-        reasons.append("Congestion impact significantly exceeds city average.")
-
-    # 2. Peak-hour violations above city average
-    total = _zone_total_viol.get(zone_name, 0)
-    peak  = _zone_peak_viol.get(zone_name, 0) if len(_zone_peak_viol) > 0 else 0
-    if total > 0:
-        zone_peak_ratio = peak / total
-        if zone_peak_ratio > _city_avg_peak_ratio * 1.15:
-            reasons.append("Peak-hour violations exceed city average.")
-
-    # 3. Repeat / persistent violations
-    vpd = _zone_vpd.get(zone_name, 0) if len(_zone_vpd) > 0 else 0
-    if _city_avg_vpd > 0 and vpd > _city_avg_vpd * 1.2:
-        reasons.append("Repeated violations detected across multiple periods.")
-
-    # 4. Heavy vehicle concentration
-    heavy = _zone_heavy_viol.get(zone_name, 0) if len(_zone_heavy_viol) > 0 else 0
-    if total > 0:
-        zone_heavy_ratio = heavy / total
-        if zone_heavy_ratio > _city_avg_heavy_ratio * 1.25:
-            reasons.append("High concentration of heavy vehicles observed.")
-
-    if not reasons:
-        reasons.append("Elevated violation frequency relative to zone capacity.")
-
-    return reasons
-
-
-def classify_priority(score):
-    """Map a numeric risk/priority score to a labelled tier."""
-    if score >= 80:
-        return "🔴 High"
-    elif score >= 60:
-        return "🟡 Medium"
-    else:
-        return "🟢 Low"
-
 
 # ─────────────────────────────────────────────
 # HEADER
@@ -536,12 +317,11 @@ st.markdown("""
 # ─────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────
-tab_overview, tab_risk, tab_deploy, tab_ai, tab_impact, tab_impact = st.tabs([
+tab_overview, tab_risk, tab_deploy, tab_ai, tab_impact = st.tabs([
     "🏙️  Overview",
     "⚠️  Risk Intelligence",
     "🚓  Deployment Planner",
     "🤖  AI Recommendations",
-    "📈  Impact & Performance",
     "📈  Impact & Performance",
 ])
 
@@ -595,39 +375,20 @@ with tab_overview:
         st.markdown('<div class="section-title">📊 Violations by Hour</div>', unsafe_allow_html=True)
         hourly_df = hourly.reset_index()
         hourly_df.columns = ["Hour", "Violations"]
-        # Annotate peak window (17–20h)
         fig_hourly = px.area(
             hourly_df, x="Hour", y="Violations",
             color_discrete_sequence=["#60a5fa"],
             template="plotly_dark",
-        )
-        fig_hourly.add_vrect(
-            x0=17, x1=20,
-            fillcolor="rgba(245,158,11,0.08)",
-            line_width=0,
-            annotation_text="Evening peak",
-            annotation_position="top left",
-            annotation_font_color="rgba(253,186,116,0.7)",
-            annotation_font_size=11,
-        )
-        fig_hourly.add_vrect(
-            x0=8, x1=10,
-            fillcolor="rgba(96,165,250,0.08)",
-            line_width=0,
-            annotation_text="Morning peak",
-            annotation_position="top left",
-            annotation_font_color="rgba(147,197,253,0.7)",
-            annotation_font_size=11,
         )
         fig_hourly.update_layout(
             paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
             margin=dict(l=0, r=0, t=10, b=0),
             font_color="#cbd5e1",
-            xaxis=dict(gridcolor="rgba(255,255,255,0.05)", dtick=2),
+            xaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
             yaxis=dict(gridcolor="rgba(255,255,255,0.05)"),
         )
-        fig_hourly.update_traces(fillcolor="rgba(96,165,250,0.12)", line_color="#60a5fa")
+        fig_hourly.update_traces(fillcolor="rgba(96,165,250,0.15)", line_color="#60a5fa")
         st.plotly_chart(fig_hourly, use_container_width=True)
 
     with col_map:
@@ -761,18 +522,6 @@ with tab_deploy:
             help="Only deploy to zones whose Risk Score is at or above this value",
         )
 
-    with ctrl3:
-        eligible_zones = len(enforcement[enforcement["priority_score"] >= risk_threshold])
-        total_zones    = len(enforcement)
-        coverage_pct   = round(eligible_zones / total_zones * 100) if total_zones > 0 else 0
-        st.markdown(f"""
-        <div class="mini-stat">
-            <div class="mini-stat-value">{eligible_zones}</div>
-            <div class="mini-stat-label">Eligible Zones<br>
-                <span style="color:rgba(96,165,250,0.8)">{coverage_pct}% of network</span>
-            </div>
-        </div>""", unsafe_allow_html=True)
-
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ── Simulation logic (unchanged allocation math) ─────────
@@ -837,6 +586,14 @@ with tab_deploy:
 
             alloc_display["priority_score"] = alloc_display["priority_score"].round(1)
 
+            def classify_priority(score):
+                if score >= 80:
+                    return "🔴 High"
+                elif score >= 60:
+                    return "🟡 Medium"
+                else:
+                    return "🟢 Low"
+
             alloc_display["Priority"] = alloc_display["priority_score"].apply(classify_priority)
 
             alloc_display = alloc_display.rename(columns={
@@ -882,7 +639,7 @@ with tab_deploy:
 # ══════════════════════════════════════════════
 with tab_ai:
 
-    st.markdown(f'<div class="section-title">🤖 Zone Intelligence Cards &nbsp;<span style="font-size:0.75rem;color:rgba(148,163,184,0.5);font-weight:400;text-transform:none;letter-spacing:0">· {len(rec_df)} zones</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">🤖 Zone Intelligence Cards</div>', unsafe_allow_html=True)
 
     # ── City-wide baselines for explainability ──
     city_avg_congestion  = df["congestion_impact_score"].mean()
@@ -942,7 +699,6 @@ with tab_ai:
         .head(12)
     )
 
-    # Helpers (unchanged)
     def get_action(risk_level):
         actions = {
             "Critical": "Immediate heavy deployment + traffic barriers",
@@ -1205,5 +961,3 @@ with tab_impact:
                 use_container_width=True,
                 hide_index=True,
             )
-
-
