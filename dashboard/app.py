@@ -25,10 +25,23 @@ html, body, [data-testid="stAppViewContainer"] {
     color: #e2e8f0;
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
+            
+/* ── Hide Streamlit top toolbar ── */
+header[data-testid="stHeader"] {
+    display: none;
+}
+
+#MainMenu {
+    visibility: hidden;
+}
+
+footer {
+    visibility: hidden;
+}
 
 /* ── Reduce default top padding ── */
 .block-container {
-    padding-top: 0.5rem !important;
+    padding-top: 2rem !important;
     padding-bottom: 1rem !important;
 }
 
@@ -378,7 +391,7 @@ with tab_overview:
         st.plotly_chart(fig_hourly, use_container_width=True)
 
     with col_map:
-        st.markdown('<div class="section-title">🗺️ Bengaluru Heatmap</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">🗺️ Bengaluru Illegal Parking Hotspots</div>', unsafe_allow_html=True)
 
         required_heat_cols = {"latitude", "longitude", "congestion_impact_score"}
         if required_heat_cols.issubset(df.columns):
