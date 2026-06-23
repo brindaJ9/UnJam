@@ -26,9 +26,9 @@ html, body, [data-testid="stAppViewContainer"] {
     font-family: 'Inter', 'Segoe UI', sans-serif;
 }
             
-/* ── Keep Streamlit toolbar but make it transparent ── */
+/* ── Hide Streamlit top toolbar ── */
 header[data-testid="stHeader"] {
-    background: transparent;
+    display: none;
 }
 
 #MainMenu {
@@ -41,7 +41,7 @@ footer {
 
 /* ── Reduce default top padding ── */
 .block-container {
-    padding-top: 3.5rem !important;
+    padding-top: 2rem !important;
     padding-bottom: 1rem !important;
 }
 
@@ -295,9 +295,8 @@ div[data-testid="stVerticalBlockBorderWrapper"] button[kind="secondary"]:hover {
 # ─────────────────────────────────────────────
 @st.cache_data
 def load_data():
-    return pd.read_csv(
-    "data/processed/dashboard_data.csv"
-)
+    return pd.read_csv("data/processed/cleaned_parking_data.csv")
+
 
 @st.cache_data
 def load_ai_outputs():
@@ -314,7 +313,7 @@ hotspots, enforcement, peak_forecast = load_ai_outputs()
 df["created_datetime"] = pd.to_datetime(df["created_datetime"], format="ISO8601")
 hourly = df["created_datetime"].dt.hour.value_counts().sort_index()
 
-total_violations     = 298450
+total_violations     = len(df)
 n_hotspots           = len(hotspots[hotspots["risk_level"] == "Critical"])
 recommended_officers = int(enforcement["recommended_officers"].sum())
 
@@ -347,11 +346,12 @@ st.markdown("""
 # ─────────────────────────────────────────────
 # TABS
 # ─────────────────────────────────────────────
-tab_overview, tab_risk, tab_deploy, tab_ai = st.tabs([
+tab_overview, tab_risk, tab_deploy, tab_ai, tab_impact = st.tabs([
     "🏙️  Overview",
     "⚠️  Risk Intelligence",
     "🚓  Deployment Planner",
     "🤖  AI Recommendations",
+    "📈  Impact & Performance",
 ])
 
 
@@ -511,7 +511,6 @@ with tab_risk:
             use_container_width=True,
             hide_index=True,
         )
-        
 
     with r2c2:
         st.markdown('<div class="section-title">⏰ Peak Enforcement Forecast</div>', unsafe_allow_html=True)
@@ -521,67 +520,6 @@ with tab_risk:
             hide_index=True,
         )
 
-# =============================================================
-# EXPLAINABLE AI RECOMMENDATION
-# =============================================================
-
-st.subheader("🧠 Why AI Recommended This Zone")
-
-
-selected_zone = st.selectbox(
-    "Select Enforcement Zone",
-    hotspots["enforcement_zone"].head(20)
-)
-
-
-zone = hotspots[
-    hotspots["enforcement_zone"] == selected_zone
-].iloc[0]
-
-
-peak = peak_forecast[
-    peak_forecast["enforcement_zone"] == selected_zone
-]
-
-
-officer = enforcement[
-    enforcement["enforcement_zone"] == selected_zone
-]
-
-
-st.info(
-    f"""
-    ### 🚦 {selected_zone}
-
-    **Why this area is prioritized:**
-
-    🔥 Risk Level:
-    {zone['risk_level']}
-
-    🚗 Historical Violations:
-    {int(zone['violation_count']):,}
-
-    📊 Priority Score:
-    {zone['priority_score']:.2f}
-
-    ⏰ Peak Enforcement Window:
-    {
-        peak.iloc[0]['recommended_time_window']
-        if len(peak) > 0 else
-        'Not Available'
-    }
-
-    👮 Recommended Officers:
-    {
-        int(officer.iloc[0]['recommended_officers'])
-        if len(officer) > 0 else
-        0
-    }
-
-    AI recommends this zone because it combines
-    high violation frequency with congestion impact.
-    """
-)
 
 # ══════════════════════════════════════════════
 # TAB 3 · DEPLOYMENT PLANNER
@@ -851,64 +789,44 @@ def show_zone_detail(idx: int):
     time_window = pf_best.loc[zone, "recommended_time_window"] if zone in pf_best.index else "—"
     badge_cls   = _badge_css(risk_label)
 
-    DIV = '<hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:1rem 0;">'
-    SH  = 'font-size:0.7rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:rgba(148,163,184,0.5);margin-bottom:0.6rem;'
+    # ── Zone name + badge ─────────────────────
+    st.markdown(f"### 📍 {zone}")
+    badge_colours = {
+        "badge-critical": "🔴",
+        "badge-high":     "🟠",
+        "badge-medium":   "🟡",
+        "badge-low":      "🟢",
+    }
+    icon = badge_colours.get(badge_cls, "⚪")
+    st.markdown(f"{icon} **{risk_label}**")
 
-    # ── Zone name + badge ──
-    st.markdown(
-        f'<div style="font-size:1.35rem;font-weight:800;color:#f1f5f9;'
-        f'line-height:1.3;word-break:break-word;margin-bottom:0.5rem;">📍 {zone}</div>'
-        f'<span class="rec-badge {badge_cls}">{risk_label}</span>',
-        unsafe_allow_html=True,
-    )
+    st.divider()
 
-    st.markdown(DIV, unsafe_allow_html=True)
-
-    # ── Why flagged ──
-    st.markdown(f'<div style="{SH}">Why this location was flagged</div>', unsafe_allow_html=True)
+    # ── Why flagged ───────────────────────────
+    st.markdown("**WHY THIS LOCATION WAS FLAGGED**")
     for r in reasons:
-        st.markdown(
-            f'<div style="display:flex;align-items:flex-start;gap:0.5rem;'
-            f'padding:0.25rem 0;font-size:0.87rem;color:#86efac;line-height:1.5;">'
-            f'<span style="color:#4ade80;flex-shrink:0;">&#10003;</span>'
-            f'<span>{r}</span></div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f"✅ {r}")
 
-    st.markdown(DIV, unsafe_allow_html=True)
+    st.divider()
 
-    # ── Risk metrics ──
-    st.markdown(f'<div style="{SH}">Risk Metrics</div>', unsafe_allow_html=True)
-    for label, value in [
-        ("Risk Score",        f"{priority:.1f}"),
-        ("Congestion Impact", congestion),
-        ("Confidence",        confidence),
-    ]:
-        st.markdown(
-            f'<div style="display:flex;justify-content:space-between;'
-            f'padding:0.3rem 0;border-bottom:1px solid rgba(255,255,255,0.05);">'
-            f'<span style="font-size:0.87rem;color:rgba(148,163,184,0.7);">{label}</span>'
-            f'<span style="font-size:0.87rem;font-weight:700;color:#f1f5f9;">{value}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
+    # ── Risk metrics ──────────────────────────
+    st.markdown("**RISK METRICS**")
+    mc1, mc2, mc3 = st.columns(3)
+    mc1.metric("Risk Score",        f"{priority:.1f}")
+    mc2.metric("Congestion Impact", congestion)
+    mc3.metric("Confidence",        confidence)
 
-    st.markdown(DIV, unsafe_allow_html=True)
+    st.divider()
 
-    # ── Recommended actions ──
-    st.markdown(f'<div style="{SH}">Recommended Actions</div>', unsafe_allow_html=True)
-    for item in [
+    # ── Recommended actions ───────────────────
+    st.markdown("**RECOMMENDED ACTIONS**")
+    action_items = [
         f"Deploy {officers} officers to this zone",
         f"Increase monitoring during peak hours — suggested window: {time_window}",
         action,
-    ]:
-        st.markdown(
-            f'<div style="display:flex;align-items:flex-start;gap:0.5rem;'
-            f'padding:0.25rem 0;font-size:0.87rem;color:#a5b4fc;line-height:1.5;">'
-            f'<span style="color:#818cf8;flex-shrink:0;">&#10003;</span>'
-            f'<span>{item}</span></div>',
-            unsafe_allow_html=True,
-        )
+    ]
+    for item in action_items:
+        st.markdown(f"✅ {item}")
 
 
 # ── Session state for dialog trigger ─────────
