@@ -104,49 +104,56 @@ footer {
 .kpi-accent-amber { border-top: 3px solid #f59e0b; }
 .kpi-accent-green { border-top: 3px solid #10b981; }
 
-/* ── Recommendation card ── */
-.rec-card {
+/* ── Unified rec-tile: card + button fused ── */
+.rec-tile-wrap {
+    position: relative;
+    margin-bottom: 0.6rem;
+}
+.rec-tile {
     background: rgba(255, 255, 255, 0.06);
     backdrop-filter: blur(18px);
     -webkit-backdrop-filter: blur(18px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 18px;
-    padding: 1.2rem 1.4rem;
-    margin-bottom: 0.85rem;
-    box-shadow: 0 6px 24px rgba(0,0,0,0.3);
-    transition: transform 0.2s ease;
+    border-radius: 16px 16px 0 0;   /* top corners rounded, bottom flat */
+    padding: 1rem 1.1rem 0.85rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    transition: box-shadow 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
-.rec-card:hover { transform: translateY(-2px); }
-.rec-zone {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #f1f5f9;
-    margin-bottom: 0.6rem;
+/* Hover — glow + lift the whole tile */
+.rec-tile-wrap:hover .rec-tile {
+    border-color: rgba(96, 165, 250, 0.35);
+    box-shadow: 0 8px 32px rgba(96, 165, 250, 0.18), 0 2px 8px rgba(0,0,0,0.3);
+    transform: translateY(-2px);
 }
-.rec-badge {
-    display: inline-block;
-    padding: 0.2rem 0.65rem;
-    border-radius: 999px;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    margin-right: 0.4rem;
-    margin-bottom: 0.5rem;
+/* Pull the Streamlit button immediately below into the card */
+.rec-tile-wrap > div[data-testid="stButton"] {
+    margin-top: 0 !important;
 }
-.badge-critical { background: rgba(239,68,68,0.25); color: #fca5a5; border: 1px solid rgba(239,68,68,0.4); }
-.badge-high     { background: rgba(245,158,11,0.25); color: #fcd34d; border: 1px solid rgba(245,158,11,0.4); }
-.badge-medium   { background: rgba(59,130,246,0.25); color: #93c5fd; border: 1px solid rgba(59,130,246,0.4); }
-.badge-low      { background: rgba(16,185,129,0.25); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.4); }
-.rec-meta {
-    font-size: 0.78rem;
-    color: rgba(148,163,184,0.85);
-    line-height: 1.8;
+.rec-tile-wrap > div[data-testid="stButton"] > button {
+    width: 100% !important;
+    background: rgba(255, 255, 255, 0.05) !important;
+    color: rgba(148,163,184,0.7) !important;
+    border: 1px solid rgba(255,255,255,0.1) !important;
+    border-top: none !important;
+    border-radius: 0 0 16px 16px !important;  /* bottom corners rounded only */
+    font-size: 0.73rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.04em !important;
+    padding: 0.42rem 0 !important;
+    cursor: pointer !important;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease !important;
+    box-shadow: none !important;
 }
-.rec-action {
-    font-size: 0.82rem;
-    color: #a5b4fc;
-    font-weight: 600;
-    margin-top: 0.5rem;
+/* Hover — button becomes prominent */
+.rec-tile-wrap:hover > div[data-testid="stButton"] > button {
+    background: rgba(96,165,250,0.15) !important;
+    color: #93c5fd !important;
+    border-color: rgba(96,165,250,0.35) !important;
+    box-shadow: 0 4px 14px rgba(96,165,250,0.15) !important;
+}
+.rec-tile-wrap > div[data-testid="stButton"] > button:active {
+    background: rgba(96,165,250,0.28) !important;
+    transform: translateY(1px) !important;
 }
 
 /* ── Section heading ── */
@@ -863,41 +870,45 @@ with tab_ai:
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div class="section-title">🗺️ Zone Recommendations</div>', unsafe_allow_html=True)
 
-    # ── Level 2: Compact card grid (4 columns) ──
+    # ── Level 2: Compact unified card grid (4 columns) ──
     COLS = 4
     for row_start in range(0, len(rec_df), COLS):
         row_slice = rec_df.iloc[row_start : row_start + COLS]
-        cols = st.columns(COLS, gap="medium")
+        cols = st.columns(COLS, gap="small")
         for col, (idx, rec) in zip(cols, row_slice.iterrows()):
-            zone       = rec["enforcement_zone"]
-            risk_label = str(rec.get("risk_level", "N/A")).capitalize()
-            priority   = f"{rec.get('priority_score', 0):.1f}"
-            congestion = _congestion_pct(rec.get("enforcement_demand_score"))
-            badge_cls  = _badge_css(risk_label)
-
-            # Compact zone label: strip long prefix codes for display
+            zone        = rec["enforcement_zone"]
+            risk_label  = str(rec.get("risk_level", "N/A")).capitalize()
+            priority    = f"{rec.get('priority_score', 0):.1f}"
+            congestion  = _congestion_pct(rec.get("enforcement_demand_score"))
+            badge_cls   = _badge_css(risk_label)
             display_name = zone.split(" - ", 1)[-1] if " - " in zone else zone
 
             with col:
+                # Wrap in .rec-tile-wrap so the CSS sibling selector
+                # can reach the st.button rendered directly after the markdown
                 st.markdown(f"""
-                <div class="rec-card" style="padding:1rem 1.1rem;min-height:140px;">
+                <div class="rec-tile-wrap">
+                  <div class="rec-tile">
                     <div style="font-size:0.78rem;font-weight:700;color:#f1f5f9;
-                                margin-bottom:0.45rem;line-height:1.3;min-height:2.4em;">
+                                line-height:1.3;min-height:2.3em;margin-bottom:0.4rem;">
                         📍 {display_name}
                     </div>
-                    <span class="rec-badge {badge_cls}" style="margin-bottom:0.6rem;
-                          display:inline-block;">{risk_label}</span>
-                    <div style="font-size:0.74rem;color:rgba(148,163,184,0.8);
-                                line-height:1.7;margin-top:0.2rem;">
+                    <div style="margin-bottom:0.45rem;">
+                        <span class="rec-badge {badge_cls}">{risk_label}</span>
+                    </div>
+                    <div style="font-size:0.74rem;color:rgba(148,163,184,0.8);line-height:1.75;">
                         Risk Score: <b style="color:#f1f5f9;">{priority}</b><br>
                         Est. Congestion: <b style="color:#f1f5f9;">{congestion}</b>
                     </div>
-                </div>
+                  </div>
                 """, unsafe_allow_html=True)
 
-                if st.button("View Details", key=f"detail_{idx}", use_container_width=True):
+                if st.button("View Details →", key=f"detail_{idx}", use_container_width=True):
                     st.session_state["detail_zone_idx"] = idx
                     st.rerun()
+
+                # Close the wrapper div
+                st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════
